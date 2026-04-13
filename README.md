@@ -4,9 +4,9 @@
 <!-- badges: end -->
 
 Shared SQLite cache backend for the nordstat family of R packages:
-[rKolada](https://github.com/LoveHansson/rKolada),
-[rTrafa](https://github.com/LoveHansson/rTrafa), and
-[pixieweb](https://github.com/LoveHansson/pixieweb).
+[rKolada](https://github.com/LCHansson/rKolada),
+[rTrafa](https://github.com/LCHansson/rTrafa), and
+[pixieweb](https://github.com/LCHansson/pixieweb).
 
 ## Why
 
@@ -29,7 +29,7 @@ same cell.
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("LoveHansson/nordstatExtras")
+devtools::install_github("LCHansson/nordstatExtras")
 ```
 
 ## Use
