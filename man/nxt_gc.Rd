@@ -29,3 +29,18 @@ benefit from cross-query freshness).
 
 Finally prunes orphan rows from \code{cell_dims} and \code{meta_search}.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+
+# Remove cells and metadata older than 30 days (default)
+nxt_gc(handle)
+
+# Custom TTL: remove anything older than 7 days
+nxt_gc(handle, max_age_days = 7)
+
+nxt_close(handle)
+unlink(path)
+}
+}

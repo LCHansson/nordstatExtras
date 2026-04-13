@@ -16,3 +16,11 @@ nxt_close(handle)
 Flushes any pending async writes and disconnects the underlying DBI
 connection.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+nxt_close(handle)
+unlink(path)
+}
+}

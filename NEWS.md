@@ -1,6 +1,6 @@
-# nordstatExtras 0.0.0.9000
+# nordstatExtras 0.1.0
 
-Initial development version.
+Initial CRAN release.
 
 ## Data caching (phases 0–5)
 

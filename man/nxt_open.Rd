@@ -21,3 +21,13 @@ Opens a SQLite database at \code{path}, creating the file and applying the
 schema if it does not yet exist. Sets WAL mode and pragmas suitable for
 multi-process read/write access.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+print(handle)
+nxt_close(handle)
+unlink(path)
+}
+
+}

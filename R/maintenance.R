@@ -10,6 +10,20 @@
 #'   (default) clears both kinds.
 #'
 #' @return `invisible(NULL)`. Emits a message summarising what was removed.
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#'
+#' # Clear all cached data for a specific source
+#' nxt_clear(handle, source = "kolada")
+#'
+#' # Clear everything
+#' nxt_clear(handle)
+#'
+#' nxt_close(handle)
+#' unlink(path)
+#' }
 #' @export
 nxt_clear <- function(handle, source = NULL, entity = NULL, kind = NULL) {
   stopifnot(inherits(handle, "nxt_handle"))
@@ -36,10 +50,12 @@ nxt_clear <- function(handle, source = NULL, entity = NULL, kind = NULL) {
   }
 
   DBI::dbWithTransaction(con, {
-    hashes <- DBI::dbGetQuery(
-      con, paste("SELECT query_hash FROM queries", where_sql),
-      params = params
-    )
+    query_sql <- paste("SELECT query_hash FROM queries", where_sql)
+    hashes <- if (length(params) > 0) {
+      DBI::dbGetQuery(con, query_sql, params = params)
+    } else {
+      DBI::dbGetQuery(con, query_sql)
+    }
     n_q <- nrow(hashes)
 
     if (n_q > 0) {
@@ -109,6 +125,20 @@ nxt_clear <- function(handle, source = NULL, entity = NULL, kind = NULL) {
 #' @param handle An `nxt_handle`.
 #' @param max_age_days Maximum age in days. Default 30.
 #' @return `invisible(NULL)`.
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#'
+#' # Remove cells and metadata older than 30 days (default)
+#' nxt_gc(handle)
+#'
+#' # Custom TTL: remove anything older than 7 days
+#' nxt_gc(handle, max_age_days = 7)
+#'
+#' nxt_close(handle)
+#' unlink(path)
+#' }
 #' @export
 nxt_gc <- function(handle, max_age_days = NXT_DEFAULT_TTL_DAYS) {
   stopifnot(inherits(handle, "nxt_handle"))

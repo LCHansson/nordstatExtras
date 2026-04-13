@@ -15,3 +15,12 @@ nxt_flush(handle)
 \description{
 Blocks until all buffered writes for a handle have been committed.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+nxt_flush(handle)
+nxt_close(handle)
+unlink(path)
+}
+}

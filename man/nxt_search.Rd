@@ -32,3 +32,31 @@ Every call to a metadata-caching function (e.g. \code{get_kpi()},
 so \code{nxt_search()} returns matches across all three source packages in a
 single query.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+
+# Populate the search index by storing some metadata
+ch <- nxt_cache_handler(
+  source = "kolada", entity = "kpi", cache = TRUE,
+  cache_location = handle, kind = "metadata",
+  key_params = list()
+)
+ch("store", data.frame(
+  id = c("N03700", "N01951"),
+  title = c("Befolkning totalt", "Bruttoregionprodukt"),
+  description = c("Antal invanare", "BRP per capita")
+))
+
+# Typeahead search
+nxt_search(handle, "bef*")
+
+# Filter by source
+nxt_search(handle, "bef*", sources = "kolada")
+
+nxt_close(handle)
+unlink(path)
+}
+
+}

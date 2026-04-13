@@ -11,3 +11,4 @@
 ^tests/integration_smoke\.R$
 ^tests/bench_large_batch\.R$
 ^tmp$
+^CRAN-SUBMISSION$

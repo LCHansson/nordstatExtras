@@ -30,7 +30,7 @@ restore_value <- function(cells) {
 pivot_dims <- function(cells, dim_cols) {
   n <- nrow(cells)
   if (length(dim_cols) == 0 || n == 0) {
-    return(setNames(
+    return(stats::setNames(
       lapply(dim_cols, function(col) rep(NA_character_, n)),
       dim_cols
     ))
@@ -75,7 +75,7 @@ pivot_dims <- function(cells, dim_cols) {
   names(unique_cols) <- dim_cols
 
   broadcast <- match(cells$dims_hash, unique_hashes)
-  setNames(
+  stats::setNames(
     lapply(dim_cols, function(col) unique_cols[[col]][broadcast]),
     dim_cols
   )

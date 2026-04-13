@@ -23,3 +23,18 @@ nxt_clear(handle, source = NULL, entity = NULL, kind = NULL)
 Removes queries (and any cells / metadata rows no longer referenced) from
 the cache. Filters narrow the scope to a single source, entity, or kind.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+
+# Clear all cached data for a specific source
+nxt_clear(handle, source = "kolada")
+
+# Clear everything
+nxt_clear(handle)
+
+nxt_close(handle)
+unlink(path)
+}
+}

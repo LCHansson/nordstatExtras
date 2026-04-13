@@ -11,6 +11,15 @@
 #' @return An object of class `nxt_handle` — a thin wrapper around the DBI
 #'   connection that also carries the path and async-queue identity.
 #'
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#' print(handle)
+#' nxt_close(handle)
+#' unlink(path)
+#' }
+#'
 #' @export
 nxt_open <- function(path, create = TRUE) {
   if (!is.character(path) || length(path) != 1) {
@@ -39,6 +48,13 @@ nxt_open <- function(path, create = TRUE) {
 #'
 #' @param handle A handle returned by [nxt_open()].
 #' @return `invisible(NULL)`
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#' nxt_close(handle)
+#' unlink(path)
+#' }
 #' @export
 nxt_close <- function(handle) {
   stopifnot(inherits(handle, "nxt_handle"))
@@ -55,6 +71,11 @@ nxt_close <- function(handle) {
 #'
 #' @param cache_location A path, function returning a path, or `nxt_handle`.
 #' @return Logical scalar.
+#' @examples
+#' nxt_is_backend("my_cache.sqlite")   # TRUE
+#' nxt_is_backend("my_cache.db")       # TRUE
+#' nxt_is_backend("/tmp/cache_dir")    # FALSE
+#' nxt_is_backend(tempdir())           # FALSE
 #' @export
 nxt_is_backend <- function(cache_location) {
   if (inherits(cache_location, "nxt_handle")) return(TRUE)

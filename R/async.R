@@ -36,6 +36,24 @@ mirai_available <- function() {
 #' @param normalize_extra Named list of extra args for the normalizer.
 #'
 #' @return `invisible(handle)`, for pipe-friendliness.
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#'
+#' df <- data.frame(
+#'   kpi = "N03700", municipality_id = "0180",
+#'   year = 2024L, value = 103.2
+#' )
+#' suppressWarnings(
+#'   nxt_write_async(handle, "kolada", "values",
+#'                   key_params = list(kpi = "N03700"), df = df)
+#' )
+#' nxt_flush(handle)
+#'
+#' nxt_close(handle)
+#' unlink(path)
+#' }
 #' @export
 nxt_write_async <- function(handle, source, entity, key_params, df,
                             normalize_extra = list()) {
@@ -62,6 +80,14 @@ nxt_write_async <- function(handle, source, entity, key_params, df,
 #'
 #' @param handle An `nxt_handle`.
 #' @return `invisible(NULL)`
+#' @examples
+#' \donttest{
+#' path <- tempfile(fileext = ".sqlite")
+#' handle <- nxt_open(path)
+#' nxt_flush(handle)
+#' nxt_close(handle)
+#' unlink(path)
+#' }
 #' @export
 nxt_flush <- function(handle) {
   stopifnot(inherits(handle, "nxt_handle"))

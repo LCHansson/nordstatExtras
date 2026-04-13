@@ -17,3 +17,9 @@ Returns \code{TRUE} when \code{cache_location} points at a \code{.sqlite}/\code{
 an existing \code{nxt_handle}. Used by rKolada/rTrafa/pixieweb inside their
 \code{cache_handler()} functions to decide whether to delegate.
 }
+\examples{
+nxt_is_backend("my_cache.sqlite")   # TRUE
+nxt_is_backend("my_cache.db")       # TRUE
+nxt_is_backend("/tmp/cache_dir")    # FALSE
+nxt_is_backend(tempdir())           # FALSE
+}

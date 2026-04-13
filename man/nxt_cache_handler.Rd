@@ -61,3 +61,29 @@ as BLOBs on the \code{queries} row. Matches the metadata-caching integration
 for \code{get_kpi()}, \code{get_products()}, \code{get_tables()}, etc. TTL is query-level.
 }
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+
+# Data caching (cell-level)
+ch <- nxt_cache_handler(
+  source = "kolada", entity = "values", cache = TRUE,
+  cache_location = handle,
+  key_params = list(kpi = "N03700", period = "2024")
+)
+ch("discover")   # FALSE - nothing cached yet
+
+# Metadata caching (whole-BLOB)
+ch_meta <- nxt_cache_handler(
+  source = "kolada", entity = "kpi", cache = TRUE,
+  cache_location = handle,
+  kind = "metadata",
+  key_params = list(id = NULL)
+)
+ch_meta("discover")   # FALSE
+
+nxt_close(handle)
+unlink(path)
+}
+}

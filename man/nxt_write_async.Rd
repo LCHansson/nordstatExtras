@@ -31,3 +31,22 @@ Buffers a write for a specific \verb{(source, entity, key_params)} query and
 returns immediately. The actual UPSERT into SQLite happens either in a
 background \code{mirai} task or synchronously when the package isn't available.
 }
+\examples{
+\donttest{
+path <- tempfile(fileext = ".sqlite")
+handle <- nxt_open(path)
+
+df <- data.frame(
+  kpi = "N03700", municipality_id = "0180",
+  year = 2024L, value = 103.2
+)
+suppressWarnings(
+  nxt_write_async(handle, "kolada", "values",
+                  key_params = list(kpi = "N03700"), df = df)
+)
+nxt_flush(handle)
+
+nxt_close(handle)
+unlink(path)
+}
+}
