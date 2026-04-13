@@ -2,7 +2,7 @@ Package: nordstatExtras
 Title: Shared SQLite Cache Backend for the nordstat Package Family
 Version: 0.0.0.9000
 Authors@R:
-    person("Love", "Hansson", , "love.hansson@transportforetagen.se",
+    person("Love", "Hansson", , "love.hansson@gmail.com",
            role = c("aut", "cre"))
 Description: Provides a SQLite-backed cell-level cache that can be used as a
     drop-in backend by the nordstat family of packages (rKolada, rTrafa, and
@@ -27,5 +27,5 @@ Suggests:
     testthat (>= 3.0.0),
     withr
 Config/testthat/edition: 3
-URL: https://github.com/LoveHansson/nordstatExtras
-BugReports: https://github.com/LoveHansson/nordstatExtras/issues
+URL: https://github.com/LCHansson/nordstatExtras
+BugReports: https://github.com/LCHansson/nordstatExtras/issues

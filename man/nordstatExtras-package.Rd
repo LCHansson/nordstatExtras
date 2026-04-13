@@ -14,13 +14,13 @@ required.
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/LoveHansson/nordstatExtras}
-  \item Report bugs at \url{https://github.com/LoveHansson/nordstatExtras/issues}
+  \item \url{https://github.com/LCHansson/nordstatExtras}
+  \item Report bugs at \url{https://github.com/LCHansson/nordstatExtras/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Love Hansson \email{love.hansson@transportforetagen.se}
+\strong{Maintainer}: Love Hansson \email{love.hansson@gmail.com}
 
 }
 \keyword{internal}
