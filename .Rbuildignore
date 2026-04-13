@@ -1,0 +1,13 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^CLAUDE\.md$
+^SCHEMA\.md$
+^nordstat-extras_spec\.md$
+^\.git$
+^\.gitignore$
+^\.github$
+^README\.Rmd$
+^cran-comments\.md$
+^tests/integration_smoke\.R$
+^tests/bench_large_batch\.R$
+^tmp$
