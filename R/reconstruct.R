@@ -82,9 +82,19 @@ pivot_dims <- function(cells, dim_cols) {
 }
 
 reconstruct_kolada <- function(cells, template) {
+  # Emit the period column under whichever name the original tibble used
+  # (`year` for simplify = TRUE, `period` for simplify = FALSE). Fall back
+  # to `year` when the template predates this field, for schema stability.
+  template_cols <- template$columns %||% character(0)
+  period_col <- if ("year" %in% template_cols) "year"
+                else if ("period" %in% template_cols) "period"
+                else "year"
+
   if (nrow(cells) == 0) {
-    empty <- tibble::tibble(kpi = character(), year = character(),
+    empty <- tibble::tibble(kpi = character(),
                             value = numeric())
+    empty[[period_col]] <- character()
+    empty <- empty[, c("kpi", period_col, "value"), drop = FALSE]
     return(empty)
   }
 
@@ -93,9 +103,9 @@ reconstruct_kolada <- function(cells, template) {
 
   out <- tibble::tibble(
     kpi   = cells$entity_id,
-    year  = cells$period,
     value = restore_value(cells)
   )
+  out[[period_col]] <- cells$period
   for (col in dim_cols) out[[col]] <- dim_vals[[col]]
 
   col_order <- template$columns %||% names(out)

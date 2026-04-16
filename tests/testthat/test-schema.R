@@ -7,11 +7,11 @@ test_that("nxt_open creates a fresh DB with the expected tables", {
 
   tables <- DBI::dbListTables(handle$con)
   expect_true(all(c("cells", "cell_dims", "queries", "query_cells",
-                    "meta_search", "nxt_meta") %in% tables))
+                    "meta_search", "recorded_searches", "nxt_meta") %in% tables))
 
   ver <- DBI::dbGetQuery(handle$con,
     "SELECT value FROM nxt_meta WHERE key = 'schema_version';")$value
-  expect_equal(ver, "2")
+  expect_equal(ver, as.character(nordstatExtras:::NXT_SCHEMA_VERSION))
 
   # queries has kind + payload columns
   cols <- DBI::dbGetQuery(handle$con, "PRAGMA table_info(queries);")$name

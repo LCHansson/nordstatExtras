@@ -209,44 +209,72 @@ nxt_search <- function(handle, query, sources = NULL, entity_types = NULL,
   )
 
   if (nxt_has_fts5(con)) {
-    # FTS5 path. The JOIN to meta_search is needed because FTS5
-    # external-content only materializes the indexed columns (title,
-    # description) — we want entity_id and source too.
-    where <- "meta_search_fts MATCH ?"
-    params <- list(query)
+    # FTS5 path. Two-step approach: (1) get matching rowids from FTS5,
+    # (2) look up full rows from meta_search using IN (...). The naive
+    # JOIN (meta_search_fts JOIN meta_search ON rowid) is pathologically
+    # slow with external-content FTS5 tables — 60+ seconds for 6k rows.
 
-    if (!is.null(sources)) {
-      where <- paste0(where, " AND ms.source IN (",
-                      paste(rep("?", length(sources)), collapse = ","), ")")
-      params <- c(params, as.list(sources))
-    }
-    if (!is.null(entity_types)) {
-      where <- paste0(where, " AND ms.entity_type IN (",
-                      paste(rep("?", length(entity_types)), collapse = ","), ")")
-      params <- c(params, as.list(entity_types))
-    }
-    params <- c(params, list(as.integer(limit)))
+    # Step 1: collect ranked rowids from FTS5 (sub-millisecond)
+    fts_where <- "meta_search_fts MATCH ?"
+    fts_params <- list(query)
 
-    sql <- sprintf(
-      "SELECT ms.source, ms.entity_type, ms.entity_id,
-              ms.title, ms.description, meta_search_fts.rank
-         FROM meta_search_fts
-         JOIN meta_search ms ON ms.rowid = meta_search_fts.rowid
-         WHERE %s
-         ORDER BY meta_search_fts.rank
-         LIMIT ?;",
-      where
+    # We can't filter by source/entity_type in the FTS5 query (those
+    # columns aren't in the virtual table). Apply filters in step 2.
+    fts_sql <- sprintf(
+      "SELECT rowid, rank FROM meta_search_fts WHERE %s
+       ORDER BY rank LIMIT ?;",
+      fts_where
     )
+    # Fetch more than needed to compensate for post-filter loss
+    fts_limit <- as.integer(limit) * 10L
+    fts_params <- c(fts_params, list(fts_limit))
 
-    hits <- tryCatch(
-      DBI::dbGetQuery(con, sql, params = params),
+    fts_hits <- tryCatch(
+      DBI::dbGetQuery(con, fts_sql, params = fts_params),
       error = function(e) {
         warn(sprintf("nxt_search FTS5 query failed: %s", conditionMessage(e)))
         NULL
       }
     )
-    if (is.null(hits)) return(empty_result)
-    return(tibble::as_tibble(hits))
+    if (is.null(fts_hits) || nrow(fts_hits) == 0) return(empty_result)
+
+    # Step 2: fetch full rows from meta_search by rowid (fast PK lookup)
+    rowids <- fts_hits$rowid
+    ranks <- fts_hits$rank
+    placeholders <- paste(rep("?", length(rowids)), collapse = ",")
+
+    ms_where <- sprintf("rowid IN (%s)", placeholders)
+    ms_params <- as.list(rowids)
+
+    if (!is.null(sources)) {
+      ms_where <- paste0(ms_where, " AND source IN (",
+                         paste(rep("?", length(sources)), collapse = ","), ")")
+      ms_params <- c(ms_params, as.list(sources))
+    }
+    if (!is.null(entity_types)) {
+      ms_where <- paste0(ms_where, " AND entity_type IN (",
+                         paste(rep("?", length(entity_types)), collapse = ","), ")")
+      ms_params <- c(ms_params, as.list(entity_types))
+    }
+
+    ms_sql <- sprintf(
+      "SELECT rowid, source, entity_type, entity_id, title, description
+         FROM meta_search
+        WHERE %s;",
+      ms_where
+    )
+
+    ms_hits <- DBI::dbGetQuery(con, ms_sql, params = ms_params)
+    if (nrow(ms_hits) == 0) return(empty_result)
+
+    # Merge rank from FTS5 step and apply limit
+    rank_lookup <- stats::setNames(ranks, as.character(rowids))
+    ms_hits$rank <- unname(rank_lookup[as.character(ms_hits$rowid)])
+    ms_hits <- ms_hits[order(ms_hits$rank), ]
+    ms_hits <- utils::head(ms_hits, limit)
+    ms_hits$rowid <- NULL
+
+    return(tibble::as_tibble(ms_hits))
   }
 
   # LIKE fallback for SQLite builds without FTS5. Prefix match only;

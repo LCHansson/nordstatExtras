@@ -137,21 +137,30 @@ normalize_kolada <- function(df, lang = "sv") {
     ))
   }
 
-  required <- c("kpi", "year", "value")
-  missing <- setdiff(required, names(df))
-  if (length(missing)) {
+  # rKolada's get_values() renames `period` to `year` when simplify = TRUE
+  # but keeps the raw `period` column when simplify = FALSE. Accept either
+  # here so the SQLite cache works in both modes.
+  period_col <- if ("year" %in% names(df)) "year"
+                else if ("period" %in% names(df)) "period"
+                else NA_character_
+
+  required_static <- c("kpi", "value")
+  missing <- setdiff(required_static, names(df))
+  if (length(missing) || is.na(period_col)) {
+    missing_all <- c(missing,
+                     if (is.na(period_col)) "year/period" else character())
     abort(sprintf("normalize_kolada: missing required columns: %s",
-                  paste(missing, collapse = ", ")))
+                  paste(missing_all, collapse = ", ")))
   }
 
-  dim_cols <- setdiff(names(df), c("kpi", "year", "value"))
+  dim_cols <- setdiff(names(df), c("kpi", period_col, "value"))
 
   dims_info <- vec_build_dims(df, dim_cols)
 
   cells <- make_cells(
     source    = "kolada",
     entity_id = df$kpi,
-    period    = df$year,
+    period    = df[[period_col]],
     dims      = dims_info$dims_list,
     dims_hash = dims_info$dims_hash,
     value     = df$value,

@@ -28,7 +28,7 @@
 #   kind='metadata' — query-level: fresh iff queries.fetched_at is younger
 #                     than max_age. No cross-query reuse on opaque blobs.
 
-NXT_SCHEMA_VERSION <- 2L
+NXT_SCHEMA_VERSION <- 3L
 
 # Base DDL applied to fresh databases. Idempotent via IF NOT EXISTS.
 # Upgrade migrations for existing v1 databases are handled separately in
@@ -89,12 +89,13 @@ nxt_schema_ddl <- function() {
     "CREATE INDEX IF NOT EXISTS idx_query_cells_cell ON query_cells (cell_id);",
 
     "CREATE TABLE IF NOT EXISTS meta_search (
-       source      TEXT NOT NULL,
-       entity_type TEXT NOT NULL,
-       entity_id   TEXT NOT NULL,
-       title       TEXT,
-       description TEXT,
-       query_hash  TEXT,
+       source          TEXT NOT NULL,
+       entity_type     TEXT NOT NULL,
+       entity_id       TEXT NOT NULL,
+       title           TEXT,
+       description     TEXT,
+       search_keywords TEXT NOT NULL DEFAULT '',
+       query_hash      TEXT,
        PRIMARY KEY (source, entity_type, entity_id)
      );",
 
@@ -102,7 +103,25 @@ nxt_schema_ddl <- function() {
        ON meta_search (source, entity_type);",
 
     "CREATE INDEX IF NOT EXISTS idx_meta_search_query
-       ON meta_search (query_hash);"
+       ON meta_search (query_hash);",
+
+    # recorded_searches — one row per (query, source) combination that has
+    # ever been run against a live source API via the "nödutgång" live-search
+    # flow. Cron re-runs these to keep per-entity search_keywords fresh even
+    # when entities' titles/descriptions don't contain the search term
+    # (critical for pxweb, whose server-side search matches more than the
+    # visible text — tables like 'Antal bussar' match 'sjoefart').
+    "CREATE TABLE IF NOT EXISTS recorded_searches (
+       query        TEXT NOT NULL,
+       source       TEXT NOT NULL,
+       last_run_at  INTEGER NOT NULL,
+       ttl_days     INTEGER NOT NULL DEFAULT 30,
+       last_hit_count INTEGER NOT NULL DEFAULT 0,
+       PRIMARY KEY (query, source)
+     );",
+
+    "CREATE INDEX IF NOT EXISTS idx_recorded_searches_run
+       ON recorded_searches (last_run_at);"
   )
 }
 
@@ -160,6 +179,22 @@ nxt_apply_schema <- function(con) {
     }
   }
 
+  # v2 → v3 migration: add `search_keywords` column to meta_search, rebuild
+  # the FTS5 index over three columns (title, description, search_keywords).
+  # Existing rows get an empty-string default so the schema change is safe
+  # even while the app is running against the same database.
+  needs_fts_rebuild <- FALSE
+  if (current < 3L) {
+    ms_cols <- DBI::dbGetQuery(con, "PRAGMA table_info(meta_search);")$name
+    if (!"search_keywords" %in% ms_cols) {
+      DBI::dbExecute(
+        con,
+        "ALTER TABLE meta_search ADD COLUMN search_keywords TEXT NOT NULL DEFAULT '';"
+      )
+      needs_fts_rebuild <- TRUE
+    }
+  }
+
   # Index on queries.kind — must come AFTER the ALTER TABLE migration since
   # v1 databases don't yet have the column when the base DDL runs.
   DBI::dbExecute(
@@ -168,17 +203,32 @@ nxt_apply_schema <- function(con) {
   )
 
   # FTS5 virtual table — conditional on SQLite having FTS5 compiled in.
-  # nxt_search() has a LIKE fallback for databases that don't.
+  # nxt_search() has a LIKE fallback for databases that don't. The v2-era
+  # index covered (title, description); v3 adds search_keywords. When
+  # upgrading a v2 DB we drop + recreate to pick up the new column. Fresh
+  # v3 DBs create the three-column index directly.
   if (nxt_has_fts5(con)) {
+    if (needs_fts_rebuild) {
+      DBI::dbExecute(con, "DROP TABLE IF EXISTS meta_search_fts;")
+    }
     DBI::dbExecute(
       con,
       "CREATE VIRTUAL TABLE IF NOT EXISTS meta_search_fts USING fts5(
-         title, description,
+         title, description, search_keywords,
          content='meta_search',
          content_rowid='rowid',
          tokenize='unicode61 remove_diacritics 2'
        );"
     )
+    # Repopulate from existing meta_search rows after a rebuild. (Noop when
+    # creating fresh since meta_search is empty.)
+    if (needs_fts_rebuild) {
+      DBI::dbExecute(
+        con,
+        "INSERT INTO meta_search_fts(rowid, title, description, search_keywords)
+           SELECT rowid, title, description, search_keywords FROM meta_search;"
+      )
+    }
   }
 
   # Stamp the current version. INSERT OR REPLACE handles both fresh DBs

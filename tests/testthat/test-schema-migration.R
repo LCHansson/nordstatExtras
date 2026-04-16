@@ -50,14 +50,14 @@ test_that("opening a v1 database migrates it in place to v2", {
     "INSERT INTO nxt_meta (key, value) VALUES ('schema_version', '1');")
   DBI::dbDisconnect(con)
 
-  # Now open with nxt_open — should migrate to v2
+  # Now open with nxt_open — should migrate straight to current (v3)
   handle <- nxt_open(path)
   on.exit(nxt_close(handle), add = TRUE, after = FALSE)
 
-  # schema_version is now 2
+  # schema_version is now at current version
   ver <- DBI::dbGetQuery(handle$con,
     "SELECT value FROM nxt_meta WHERE key = 'schema_version';")$value
-  expect_equal(ver, "2")
+  expect_equal(ver, as.character(nordstatExtras:::NXT_SCHEMA_VERSION))
 
   # queries has kind + payload columns
   cols <- DBI::dbGetQuery(handle$con, "PRAGMA table_info(queries);")$name
@@ -84,5 +84,5 @@ test_that("migration is idempotent (nxt_open on already-v2 DB is a no-op)", {
 
   ver <- DBI::dbGetQuery(h2$con,
     "SELECT value FROM nxt_meta WHERE key = 'schema_version';")$value
-  expect_equal(ver, "2")
+  expect_equal(ver, as.character(nordstatExtras:::NXT_SCHEMA_VERSION))
 })
