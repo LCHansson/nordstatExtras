@@ -5,7 +5,7 @@ Authors@R:
     person("Love", "Hansson", , "love.hansson@gmail.com",
            role = c("aut", "cre"))
 Description: Provides a SQLite-backed cell-level cache that can be used as a
-    drop-in backend by the nordstat family of packages ('rKolada', 'rTrafa', and
+    drop-in backend by the 'nordstat' family of packages ('rKolada', 'rTrafa', and
     'pixieweb'). Designed for multi-user web applications where minimal fetch
     latency and asynchronous writes are required. Individual statistical
     values ("cells") are stored in a gatekeeper schema with a sidecar table
