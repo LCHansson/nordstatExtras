@@ -16,10 +16,15 @@ META_SEARCH_EXTRACTORS <- list(
     kpi = function(df) {
       if (!tibble::is_tibble(df) && !is.data.frame(df)) return(NULL)
       if (nrow(df) == 0) return(NULL)
+      # Category: operating_area (e.g. "Utbildning", "Befolkning")
+      cat <- if ("operating_area" %in% names(df)) {
+        as.character(df$operating_area %||% NA_character_)
+      } else NA_character_
       tibble::tibble(
         entity_id   = as.character(df$id),
         title       = as.character(df$title %||% NA_character_),
-        description = as.character(df$description %||% NA_character_)
+        description = as.character(df$description %||% NA_character_),
+        category    = cat
       )
     }
   ),
@@ -31,16 +36,24 @@ META_SEARCH_EXTRACTORS <- list(
       tibble::tibble(
         entity_id   = as.character(df$name),
         title       = as.character(df$label %||% NA_character_),
-        description = as.character(df$description %||% NA_character_)
+        description = as.character(df$description %||% NA_character_),
+        category    = as.character(df$label %||% NA_character_)
       )
     },
     measures = function(df) {
       if (!tibble::is_tibble(df) && !is.data.frame(df)) return(NULL)
       if (nrow(df) == 0) return(NULL)
+      # Category: product label (e.g. "Lastbilar", "Bussar")
+      cat <- if ("product_label" %in% names(df)) {
+        as.character(df$product_label %||% NA_character_)
+      } else if ("product" %in% names(df)) {
+        as.character(df$product %||% NA_character_)
+      } else NA_character_
       tibble::tibble(
         entity_id   = paste(df$product, df$name, sep = "\x1f"),
         title       = as.character(df$label %||% NA_character_),
-        description = as.character(df$description %||% NA_character_)
+        description = as.character(df$description %||% NA_character_),
+        category    = cat
       )
     }
   ),
@@ -49,10 +62,18 @@ META_SEARCH_EXTRACTORS <- list(
     tables = function(df) {
       if (!tibble::is_tibble(df) && !is.data.frame(df)) return(NULL)
       if (nrow(df) == 0) return(NULL)
+      # Category: subject_path if available (e.g. "Befolkning > Folkmängd")
+      cat <- if ("subject_path" %in% names(df)) {
+        vapply(df$subject_path, function(sp) {
+          if (is.null(sp) || length(sp) == 0) return(NA_character_)
+          paste(sp, collapse = " > ")
+        }, character(1))
+      } else NA_character_
       tibble::tibble(
         entity_id   = as.character(df$id),
         title       = as.character(df$title %||% NA_character_),
-        description = as.character(df$description %||% NA_character_)
+        description = as.character(df$description %||% NA_character_),
+        category    = cat
       )
     },
     enriched = function(df) {
@@ -64,16 +85,20 @@ META_SEARCH_EXTRACTORS <- list(
         sep = " - "
       ))
       desc[desc == "-" | desc == ""] <- NA_character_
+      cat <- if ("subject_path" %in% names(df)) {
+        vapply(df$subject_path, function(sp) {
+          if (is.null(sp) || length(sp) == 0) return(NA_character_)
+          paste(sp, collapse = " > ")
+        }, character(1))
+      } else NA_character_
       tibble::tibble(
         entity_id   = as.character(df$id),
         title       = as.character(df$title %||% NA_character_),
-        description = desc
+        description = desc,
+        category    = cat
       )
     },
     enriched_row = function(df) {
-      # table_enrich() stores one row per table_id. Same shape as `enriched`
-      # but the caller uses a different entity label so the per-row path is
-      # distinguishable in storage. Search index treats both identically.
       META_SEARCH_EXTRACTORS$pixieweb$enriched(df)
     }
   )
@@ -111,22 +136,28 @@ populate_search_index <- function(con, source, entity, payload, query_hash) {
     params = list(query_hash)
   )
 
+  # Ensure category column exists (backward compat with pre-v4 extractors)
+  if (!"category" %in% names(rows)) rows$category <- NA_character_
+
   upsert_stmt <- DBI::dbSendStatement(
     con,
     "INSERT INTO meta_search
-       (source, entity_type, entity_id, title, description, query_hash)
-     VALUES (?, ?, ?, ?, ?, ?)
+       (source, entity_type, entity_id, title, description, category, query_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(source, entity_type, entity_id) DO UPDATE SET
        title       = excluded.title,
        description = excluded.description,
+       category    = excluded.category,
        query_hash  = excluded.query_hash;"
   )
   on.exit(DBI::dbClearResult(upsert_stmt), add = TRUE)
 
   for (i in seq_len(nrow(rows))) {
+    cat_val <- rows$category[i]
+    if (is.na(cat_val)) cat_val <- ""
     DBI::dbBind(upsert_stmt, list(
       source, entity, rows$entity_id[i],
-      rows$title[i], rows$description[i], query_hash
+      rows$title[i], rows$description[i], cat_val, query_hash
     ))
   }
   DBI::dbClearResult(upsert_stmt)
@@ -205,7 +236,8 @@ nxt_search <- function(handle, query, sources = NULL, entity_types = NULL,
   empty_result <- tibble::tibble(
     source = character(), entity_type = character(),
     entity_id = character(), title = character(),
-    description = character(), rank = numeric()
+    description = character(), category = character(),
+    rank = numeric()
   )
 
   if (nxt_has_fts5(con)) {
@@ -258,7 +290,7 @@ nxt_search <- function(handle, query, sources = NULL, entity_types = NULL,
     }
 
     ms_sql <- sprintf(
-      "SELECT rowid, source, entity_type, entity_id, title, description
+      "SELECT rowid, source, entity_type, entity_id, title, description, category
          FROM meta_search
         WHERE %s;",
       ms_where
@@ -302,7 +334,7 @@ nxt_search <- function(handle, query, sources = NULL, entity_types = NULL,
   params <- c(params, list(as.integer(limit)))
 
   sql <- sprintf(
-    "SELECT source, entity_type, entity_id, title, description,
+    "SELECT source, entity_type, entity_id, title, description, category,
             0.0 AS rank
        FROM meta_search
        WHERE %s

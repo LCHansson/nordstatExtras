@@ -28,7 +28,7 @@
 #   kind='metadata' — query-level: fresh iff queries.fetched_at is younger
 #                     than max_age. No cross-query reuse on opaque blobs.
 
-NXT_SCHEMA_VERSION <- 3L
+NXT_SCHEMA_VERSION <- 4L
 
 # Base DDL applied to fresh databases. Idempotent via IF NOT EXISTS.
 # Upgrade migrations for existing v1 databases are handled separately in
@@ -95,6 +95,7 @@ nxt_schema_ddl <- function() {
        title           TEXT,
        description     TEXT,
        search_keywords TEXT NOT NULL DEFAULT '',
+       category        TEXT NOT NULL DEFAULT '',
        query_hash      TEXT,
        PRIMARY KEY (source, entity_type, entity_id)
      );",
@@ -195,6 +196,18 @@ nxt_apply_schema <- function(con) {
     }
   }
 
+  # --- v3 → v4: category column on meta_search ---
+  if (current < 4L) {
+    ms_cols <- DBI::dbGetQuery(con, "PRAGMA table_info(meta_search);")$name
+    if (!"category" %in% ms_cols) {
+      DBI::dbExecute(
+        con,
+        "ALTER TABLE meta_search ADD COLUMN category TEXT NOT NULL DEFAULT '';"
+      )
+      needs_fts_rebuild <- TRUE
+    }
+  }
+
   # Index on queries.kind — must come AFTER the ALTER TABLE migration since
   # v1 databases don't yet have the column when the base DDL runs.
   DBI::dbExecute(
@@ -214,7 +227,7 @@ nxt_apply_schema <- function(con) {
     DBI::dbExecute(
       con,
       "CREATE VIRTUAL TABLE IF NOT EXISTS meta_search_fts USING fts5(
-         title, description, search_keywords,
+         title, description, search_keywords, category,
          content='meta_search',
          content_rowid='rowid',
          tokenize='unicode61 remove_diacritics 2'
@@ -225,8 +238,8 @@ nxt_apply_schema <- function(con) {
     if (needs_fts_rebuild) {
       DBI::dbExecute(
         con,
-        "INSERT INTO meta_search_fts(rowid, title, description, search_keywords)
-           SELECT rowid, title, description, search_keywords FROM meta_search;"
+        "INSERT INTO meta_search_fts(rowid, title, description, search_keywords, category)
+           SELECT rowid, title, description, search_keywords, category FROM meta_search;"
       )
     }
   }

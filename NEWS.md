@@ -1,3 +1,17 @@
+# nordstatExtras 0.1.0.9003 (development)
+
+## Schema v4: `category` column (2026-04-17)
+
+* `meta_search` table gains a `category TEXT` column for subject/topic
+  classification of search results.
+* Extractors now populate category:
+  - Kolada: `operating_area` (e.g. "Utbildning")
+  - SCB/pixieweb: `subject_path` joined with " > " (e.g. "Befolkning > Folkmängd")
+  - Trafa: product label (e.g. "Lastbilar")
+* FTS5 index expanded to 4 columns (title, description, search_keywords, category).
+* `nxt_search()` return tibble includes `category` column.
+* Migration v3→v4 is automatic on `nxt_open()`.
+
 # nordstatExtras 0.1.0.9002 (development)
 
 ## New features
