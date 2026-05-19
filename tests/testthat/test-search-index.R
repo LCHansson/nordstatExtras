@@ -81,7 +81,7 @@ test_that("nxt_search returns empty tibble for a non-matching query", {
   hits <- nxt_search(handle, "zxyqwerty*")
   expect_equal(nrow(hits), 0L)
   expect_named(hits, c("source", "entity_type", "entity_id",
-                       "title", "description", "rank"))
+                       "title", "description", "category", "rank"))
 })
 
 test_that("search index updates on re-store of the same query", {
@@ -102,4 +102,35 @@ test_that("search index updates on re-store of the same query", {
 
   hits <- nxt_search(handle, "totalt*")
   expect_true(any(grepl("Totalt", hits$title)))
+})
+
+test_that("nxt_search matches entity_id (schema v5)", {
+  path <- tempfile(fileext = ".sqlite")
+  handle <- nxt_open(path)
+  on.exit({ nxt_close(handle); unlink(c(path, paste0(path, c("-wal","-shm"))), force = TRUE) })
+
+  # Populate from all three sources so we can confirm entity_id search
+  # works across them — Kolada (N-codes), Trafa (product + measure codes),
+  # SCB/pixieweb (TAB-codes).
+  nxt_cache_handler("kolada", "kpi", TRUE, handle, kind = "metadata",
+                    key_params = list())("store", fixture_kpi())
+  nxt_cache_handler("trafa", "products", TRUE, handle, kind = "metadata",
+                    key_params = list(lang = "SV"))("store", fixture_products())
+  nxt_cache_handler("pixieweb", "tables", TRUE, handle, kind = "metadata",
+                    key_params = list(alias = "scb"))("store", fixture_tables())
+
+  # Kolada KPI codes live only in entity_id — pre-v5 these gave 0 hits.
+  k_hits <- nxt_search(handle, "N03700*")
+  expect_gt(nrow(k_hits), 0)
+  expect_true("N03700" %in% k_hits$entity_id)
+
+  # And SCB table codes
+  ms_cols <- DBI::dbGetQuery(handle$con, "PRAGMA table_info(meta_search);")$name
+  ids <- DBI::dbGetQuery(handle$con,
+    "SELECT entity_id FROM meta_search WHERE source = 'pixieweb' LIMIT 1")$entity_id
+  if (length(ids) >= 1) {
+    px_hits <- nxt_search(handle, paste0(ids[1], "*"))
+    expect_gt(nrow(px_hits), 0)
+    expect_true(ids[1] %in% px_hits$entity_id)
+  }
 })

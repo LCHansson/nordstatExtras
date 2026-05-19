@@ -28,7 +28,7 @@
 #   kind='metadata' — query-level: fresh iff queries.fetched_at is younger
 #                     than max_age. No cross-query reuse on opaque blobs.
 
-NXT_SCHEMA_VERSION <- 4L
+NXT_SCHEMA_VERSION <- 5L
 
 # Base DDL applied to fresh databases. Idempotent via IF NOT EXISTS.
 # Upgrade migrations for existing v1 databases are handled separately in
@@ -208,6 +208,14 @@ nxt_apply_schema <- function(con) {
     }
   }
 
+  # --- v4 → v5: entity_id added to the FTS5 index so that searches on
+  # data codes (Kolada N..., SCB TAB..., Trafa measure names) actually
+  # return hits. entity_id is already a column on meta_search; only the
+  # FTS-tabellen behöver byggas om för att börja indexera den. ---
+  if (current < 5L) {
+    needs_fts_rebuild <- TRUE
+  }
+
   # Index on queries.kind — must come AFTER the ALTER TABLE migration since
   # v1 databases don't yet have the column when the base DDL runs.
   DBI::dbExecute(
@@ -216,10 +224,12 @@ nxt_apply_schema <- function(con) {
   )
 
   # FTS5 virtual table — conditional on SQLite having FTS5 compiled in.
-  # nxt_search() has a LIKE fallback for databases that don't. The v2-era
-  # index covered (title, description); v3 adds search_keywords. When
-  # upgrading a v2 DB we drop + recreate to pick up the new column. Fresh
-  # v3 DBs create the three-column index directly.
+  # nxt_search() has a LIKE fallback for databases that don't. The column
+  # set has grown over schema versions: v2 covered (title, description);
+  # v3 added search_keywords; v4 added category; v5 added entity_id so
+  # searches on codes (TAB4822, N15023, Trafa measure names) match. When
+  # any of those migrations triggers we drop + recreate to pick up the
+  # new columns. Fresh DBs create the full index directly.
   if (nxt_has_fts5(con)) {
     if (needs_fts_rebuild) {
       DBI::dbExecute(con, "DROP TABLE IF EXISTS meta_search_fts;")
@@ -227,7 +237,7 @@ nxt_apply_schema <- function(con) {
     DBI::dbExecute(
       con,
       "CREATE VIRTUAL TABLE IF NOT EXISTS meta_search_fts USING fts5(
-         title, description, search_keywords, category,
+         title, description, search_keywords, category, entity_id,
          content='meta_search',
          content_rowid='rowid',
          tokenize='unicode61 remove_diacritics 2'
@@ -238,8 +248,8 @@ nxt_apply_schema <- function(con) {
     if (needs_fts_rebuild) {
       DBI::dbExecute(
         con,
-        "INSERT INTO meta_search_fts(rowid, title, description, search_keywords, category)
-           SELECT rowid, title, description, search_keywords, category FROM meta_search;"
+        "INSERT INTO meta_search_fts(rowid, title, description, search_keywords, category, entity_id)
+           SELECT rowid, title, description, search_keywords, category, entity_id FROM meta_search;"
       )
     }
   }

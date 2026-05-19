@@ -1,3 +1,21 @@
+# nordstatExtras 0.1.0.9004 (development)
+
+## Schema v5: `entity_id` indexed in FTS5 (2026-05-17)
+
+* `meta_search_fts` now indexes a fifth column — `entity_id` — so that
+  searches on entity codes (e.g. Kolada `N15023`, SCB `TAB4822`, Trafa
+  measure codes like `andelbefolk`) actually return hits. Previously the
+  index covered only `title`, `description`, `search_keywords` and
+  `category`; codes that lived only in `entity_id` were silently
+  unmatched. (`t10011` happened to match because Trafa stores the
+  product code in `category` too — that path is unchanged and still
+  works.)
+* `meta_search` schema is unchanged — `entity_id` was already a column,
+  only the FTS-tabellen needed to start indexing it.
+* Migration v4→v5 is automatic on `nxt_open()`: `DROP + CREATE` the FTS
+  virtual table with the new column list and repopulate from
+  `meta_search`. Idempotent.
+
 # nordstatExtras 0.1.0.9003 (development)
 
 ## Schema v4: `category` column (2026-04-17)
